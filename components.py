@@ -6,6 +6,57 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 
+def render_keyboard_listener():
+    """
+    Inject JavaScript keyboard listener for arrow key navigation.
+    Left=prev, Right=next, Up=flip, Down=ragu-ragu.
+    Uses hidden buttons in Streamlit that get clicked via JS.
+    """
+    html = """
+    <script>
+    // Keyboard listener for flipcard navigation
+    const doc = window.parent.document;
+
+    function findButton(textOptions) {
+        const buttons = doc.querySelectorAll('button[kind="secondary"], button[kind="primary"]');
+        for (const btn of buttons) {
+            const btnText = btn.innerText.trim();
+            for (const txt of textOptions) {
+                if (btnText.includes(txt)) {
+                    return btn;
+                }
+            }
+        }
+        return null;
+    }
+
+    doc.addEventListener('keydown', function(e) {
+        // Skip if user is typing in a text area or input
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            const btn = findButton(['Prev']);
+            if (btn && !btn.disabled) btn.click();
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            const btn = findButton(['Next']);
+            if (btn && !btn.disabled) btn.click();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const btn = findButton(['Balik', 'Depan']);
+            if (btn && !btn.disabled) btn.click();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const btn = findButton(['Ragu', 'Yakin']);
+            if (btn && !btn.disabled) btn.click();
+        }
+    });
+    </script>
+    """
+    components.html(html, height=0, width=0)
+
+
 def render_flipcard(card_data: dict, is_flipped: bool, is_opened: bool, is_ragu: bool = False):
     """
     Render flipcard dengan CSS 3D flip animation menggunakan iframe component.

@@ -5,7 +5,7 @@ app.py — Main entry point untuk Flipcard Vocabulary App.
 import random
 import streamlit as st
 from parser import parse_vocabulary_text
-from components import render_flipcard, render_progress, render_hint
+from components import render_flipcard, render_progress, render_hint, render_keyboard_listener
 
 
 # ── Page Config ──────────────────────────────────────────────────────────────
@@ -210,6 +210,8 @@ def render_setup_page():
 
 def render_game_page():
     """Render the flipcard game page."""
+    # Keyboard listener for arrow key navigation
+    render_keyboard_listener()
     cards = st.session_state["cards"]
     is_review = st.session_state["review_mode"]
     active_order = st.session_state["review_order"] if is_review else st.session_state["order"]
