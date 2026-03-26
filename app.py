@@ -40,6 +40,9 @@ def init_state():
         "show_hint": False,
         "input_text": "",
         "order_mode": "Urut",
+        "ragu_ragu": set(),
+        "review_mode": False,
+        "review_order": [],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -68,6 +71,9 @@ def start_game():
     st.session_state["flipped"] = False
     st.session_state["opened"] = set()
     st.session_state["show_hint"] = False
+    st.session_state["ragu_ragu"] = set()
+    st.session_state["review_mode"] = False
+    st.session_state["review_order"] = []
     st.session_state["game_started"] = True
 
 
@@ -75,7 +81,8 @@ def flip_card():
     """Toggle flip state and mark card as opened."""
     st.session_state["flipped"] = not st.session_state["flipped"]
     if st.session_state["flipped"]:
-        idx = st.session_state["order"][st.session_state["current_pos"]]
+        active_order = st.session_state["review_order"] if st.session_state["review_mode"] else st.session_state["order"]
+        idx = active_order[st.session_state["current_pos"]]
         st.session_state["opened"].add(idx)
 
 
@@ -89,7 +96,8 @@ def go_prev():
 
 def go_next():
     """Navigate to next card."""
-    if st.session_state["current_pos"] < len(st.session_state["order"]) - 1:
+    active_order = st.session_state["review_order"] if st.session_state["review_mode"] else st.session_state["order"]
+    if st.session_state["current_pos"] < len(active_order) - 1:
         st.session_state["current_pos"] += 1
         st.session_state["flipped"] = False
         st.session_state["show_hint"] = False
@@ -100,11 +108,43 @@ def toggle_hint():
     st.session_state["show_hint"] = not st.session_state["show_hint"]
 
 
+def toggle_ragu():
+    """Toggle current card's ragu-ragu status."""
+    active_order = st.session_state["review_order"] if st.session_state["review_mode"] else st.session_state["order"]
+    idx = active_order[st.session_state["current_pos"]]
+    if idx in st.session_state["ragu_ragu"]:
+        st.session_state["ragu_ragu"].discard(idx)
+    else:
+        st.session_state["ragu_ragu"].add(idx)
+
+
+def start_review_ragu():
+    """Enter review mode showing only ragu-ragu cards."""
+    ragu = st.session_state["ragu_ragu"]
+    if not ragu:
+        return
+    review_order = [i for i in st.session_state["order"] if i in ragu]
+    st.session_state["review_order"] = review_order
+    st.session_state["review_mode"] = True
+    st.session_state["current_pos"] = 0
+    st.session_state["flipped"] = False
+    st.session_state["show_hint"] = False
+
+
+def exit_review_ragu():
+    """Exit review mode and return to normal."""
+    st.session_state["review_mode"] = False
+    st.session_state["current_pos"] = 0
+    st.session_state["flipped"] = False
+    st.session_state["show_hint"] = False
+
+
 def back_to_setup():
     """Go back to setup page."""
     st.session_state["game_started"] = False
     st.session_state["flipped"] = False
     st.session_state["show_hint"] = False
+    st.session_state["review_mode"] = False
 
 
 def reset_game():
@@ -112,6 +152,27 @@ def reset_game():
     st.session_state["current_pos"] = 0
     st.session_state["flipped"] = False
     st.session_state["opened"] = set()
+    st.session_state["ragu_ragu"] = set()
+    st.session_state["show_hint"] = False
+
+
+def reset_modulo_50():
+    """Reset last N cards where N = (current_pos+1) % 50 (or 50 if multiple of 50)."""
+    pos = st.session_state["current_pos"]
+    active_order = st.session_state["review_order"] if st.session_state["review_mode"] else st.session_state["order"]
+    total_seen = pos + 1
+    n = total_seen % 50
+    if n == 0:
+        n = 50
+    # n = jumlah kartu terakhir yang akan direset
+    start = total_seen - n  # posisi awal range reset
+    for i in range(start, total_seen):
+        if i < len(active_order):
+            card_idx = active_order[i]
+            st.session_state["opened"].discard(card_idx)
+            st.session_state["ragu_ragu"].discard(card_idx)
+    st.session_state["current_pos"] = start
+    st.session_state["flipped"] = False
     st.session_state["show_hint"] = False
 
 
@@ -150,23 +211,40 @@ def render_setup_page():
 def render_game_page():
     """Render the flipcard game page."""
     cards = st.session_state["cards"]
-    order = st.session_state["order"]
+    is_review = st.session_state["review_mode"]
+    active_order = st.session_state["review_order"] if is_review else st.session_state["order"]
     pos = st.session_state["current_pos"]
-    card_idx = order[pos]
+
+    # Safety check: clamp pos if order changed
+    if pos >= len(active_order):
+        pos = max(0, len(active_order) - 1)
+        st.session_state["current_pos"] = pos
+
+    if len(active_order) == 0:
+        st.warning("Tidak ada kartu untuk ditampilkan.")
+        if is_review:
+            st.button("🔙 Kembali ke Normal", on_click=exit_review_ragu, use_container_width=True)
+        return
+
+    card_idx = active_order[pos]
     card = cards[card_idx]
-    total = len(order)
+    total = len(active_order)
 
     # Header
-    st.markdown(f"### 🃏 Kartu {pos + 1} dari {total}")
+    if is_review:
+        st.markdown(f"### 🤔 Review Ragu-ragu — Kartu {pos + 1} dari {total}")
+    else:
+        st.markdown(f"### 🃏 Kartu {pos + 1} dari {total}")
 
     # Progress
-    render_progress(total, card_idx, st.session_state["opened"])
+    render_progress(total, card_idx, st.session_state["opened"], st.session_state["ragu_ragu"])
 
     # Flipcard
-    render_flipcard(card, st.session_state["flipped"], card_idx in st.session_state["opened"])
+    is_ragu = card_idx in st.session_state["ragu_ragu"]
+    render_flipcard(card, st.session_state["flipped"], card_idx in st.session_state["opened"], is_ragu)
 
     # Controls row
-    col_prev, col_flip, col_hint, col_next = st.columns(4)
+    col_prev, col_flip, col_hint, col_ragu, col_next = st.columns(5)
 
     with col_prev:
         st.button(
@@ -184,6 +262,12 @@ def render_game_page():
         hint_label = "💡 Hint" if not st.session_state["show_hint"] else "💡 Tutup"
         st.button(hint_label, on_click=toggle_hint, use_container_width=True)
 
+    with col_ragu:
+        if is_ragu:
+            st.button("✅ Yakin", on_click=toggle_ragu, use_container_width=True)
+        else:
+            st.button("🤔 Ragu", on_click=toggle_ragu, use_container_width=True)
+
     with col_next:
         st.button(
             "➡️ Next",
@@ -195,13 +279,30 @@ def render_game_page():
     # Hint area
     render_hint(card["explanation"], st.session_state["show_hint"])
 
-    # Back & Reset buttons
+    # Bottom buttons
     st.markdown("---")
-    col_back, col_reset = st.columns(2)
-    with col_back:
-        st.button("🔙 Kembali ke Setup", on_click=back_to_setup, use_container_width=True)
-    with col_reset:
-        st.button("🔄 Reset (Urutan Sama)", on_click=reset_game, use_container_width=True)
+    if is_review:
+        col_back, col_reset = st.columns(2)
+        with col_back:
+            st.button("🔙 Kembali ke Normal", on_click=exit_review_ragu, use_container_width=True)
+        with col_reset:
+            st.button("🔄 Reset Mod 50", on_click=reset_modulo_50, use_container_width=True)
+    else:
+        col_back, col_review, col_reset, col_mod = st.columns(4)
+        with col_back:
+            st.button("🔙 Setup", on_click=back_to_setup, use_container_width=True)
+        with col_review:
+            ragu_count = len(st.session_state["ragu_ragu"])
+            st.button(
+                f"📋 Review Ragu ({ragu_count})",
+                on_click=start_review_ragu,
+                disabled=(ragu_count == 0),
+                use_container_width=True,
+            )
+        with col_reset:
+            st.button("🔄 Reset", on_click=reset_game, use_container_width=True)
+        with col_mod:
+            st.button("🔄 Reset Mod 50", on_click=reset_modulo_50, use_container_width=True)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

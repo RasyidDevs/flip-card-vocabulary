@@ -6,7 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 
-def render_flipcard(card_data: dict, is_flipped: bool, is_opened: bool):
+def render_flipcard(card_data: dict, is_flipped: bool, is_opened: bool, is_ragu: bool = False):
     """
     Render flipcard dengan CSS 3D flip animation menggunakan iframe component.
 
@@ -14,9 +14,11 @@ def render_flipcard(card_data: dict, is_flipped: bool, is_opened: bool):
         card_data: Dict berisi word, pronunciation, explanation, example, indo.
         is_flipped: Apakah kartu sedang dalam keadaan terbalik.
         is_opened: Apakah kartu sudah pernah dibuka.
+        is_ragu: Apakah kartu ditandai ragu-ragu.
     """
     flipped_class = "flipped" if is_flipped else ""
     opened_badge = '<div class="opened-badge">✅ Sudah dibuka</div>' if is_opened else ''
+    ragu_badge = '<div class="ragu-badge">🤔 Ragu-ragu</div>' if is_ragu else ''
 
     html = f"""
     <!DOCTYPE html>
@@ -116,6 +118,21 @@ def render_flipcard(card_data: dict, is_flipped: bool, is_opened: bool):
             text-transform: uppercase;
         }}
 
+        .ragu-badge {{
+            position: absolute;
+            top: 1rem;
+            left: 1.2rem;
+            background: rgba(255, 152, 0, 0.3);
+            border: 1px solid rgba(255, 152, 0, 0.6);
+            color: #ffe0b2;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.25rem 0.7rem;
+            border-radius: 20px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }}
+
         .flip-card-back {{
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             color: white;
@@ -152,6 +169,7 @@ def render_flipcard(card_data: dict, is_flipped: bool, is_opened: bool):
             <div class="flip-card {flipped_class}">
                 <div class="flip-card-front">
                     {opened_badge}
+                    {ragu_badge}
                     <div class="word">{card_data['word']}</div>
                     <div class="pronunciation">{card_data['pronunciation']}</div>
                     <div class="tap-hint">Klik "Flip" untuk membalik</div>
@@ -172,7 +190,7 @@ def render_flipcard(card_data: dict, is_flipped: bool, is_opened: bool):
     components.html(html, height=340)
 
 
-def render_progress(total: int, current_index: int, opened_set: set):
+def render_progress(total: int, current_index: int, opened_set: set, ragu_set: set = None):
     """
     Render progress dots menunjukkan card mana yang sudah dibuka.
 
@@ -180,11 +198,16 @@ def render_progress(total: int, current_index: int, opened_set: set):
         total: Jumlah total kartu.
         current_index: Index kartu saat ini.
         opened_set: Set berisi index kartu yang sudah dibuka.
+        ragu_set: Set berisi index kartu yang ditandai ragu-ragu.
     """
+    if ragu_set is None:
+        ragu_set = set()
     dots = []
     for i in range(total):
         if i == current_index:
             style = "background:#ffea00;border:2px solid #ffea00;box-shadow:0 0 12px rgba(255,234,0,0.5);transform:scale(1.3);"
+        elif i in ragu_set:
+            style = "background:#ff9800;border:2px solid #ff9800;box-shadow:0 0 8px rgba(255,152,0,0.4);"
         elif i in opened_set:
             style = "background:#00e676;border:2px solid #00e676;box-shadow:0 0 8px rgba(0,230,118,0.4);"
         else:
@@ -192,9 +215,10 @@ def render_progress(total: int, current_index: int, opened_set: set):
         dots.append(f'<div style="width:12px;height:12px;border-radius:50%;display:inline-block;margin:0 4px;transition:all 0.3s ease;{style}"></div>')
 
     opened_count = len(opened_set)
+    ragu_count = len(ragu_set)
 
     html = f"""<div style="text-align:center;font-family:Inter,sans-serif;margin-bottom:0.5rem;">
-        <div style="font-size:0.9rem;color:#555;margin-bottom:0.5rem;"><strong style="color:#222;">{opened_count}</strong> / {total} kartu sudah dibuka</div>
+        <div style="font-size:0.9rem;color:#555;margin-bottom:0.5rem;"><strong style="color:#222;">{opened_count}</strong> / {total} kartu sudah dibuka | <strong style="color:#ff9800;">{ragu_count}</strong> ragu-ragu</div>
         <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;">{''.join(dots)}</div>
     </div>"""
 
